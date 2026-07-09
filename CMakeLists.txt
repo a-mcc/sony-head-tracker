@@ -12,6 +12,10 @@ add_executable(sony-head-tracker
         src/main_linux.cpp
         src/hid_backend_linux.cpp
         src/hid_descriptor.cpp
+        src/math.cpp
+        src/orientation.cpp
+        src/output_udp_linux.cpp
+        src/protocol.cpp
 )
 
 target_include_directories(sony-head-tracker PRIVATE
