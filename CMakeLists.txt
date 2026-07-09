@@ -10,6 +10,7 @@ pkg_check_modules(HIDAPI REQUIRED hidapi-hidraw)
 
 add_executable(sony-head-tracker
         src/main_linux.cpp
+        src/hid_backend_linux.cpp
 )
 
 target_include_directories(sony-head-tracker PRIVATE
