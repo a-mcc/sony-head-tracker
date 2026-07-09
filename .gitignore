@@ -19,3 +19,23 @@ CMakeSettings.json
 # Local tooling
 .claude/
 *.log
+
+# JetBrains
+.idea/
+*.iml
+
+# CMake
+build/
+cmake-build-*/
+
+# Ninja
+.ninja_*
+CMakeCache.txt
+CMakeFiles/
+compile_commands.json
+
+# macOS
+.DS_Store
+
+# Linux
+*.swp
