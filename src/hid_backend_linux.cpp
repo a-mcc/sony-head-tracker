@@ -1,4 +1,5 @@
 #include "sony_head_tracker/hid_backend.hpp"
+#include "sony_head_tracker/hid_descriptor.hpp"
 #include "sony_head_tracker/hid_usages.hpp"
 
 #include <hidapi/hidapi.h>
@@ -34,15 +35,22 @@ std::string narrow(const std::wstring& s) {
     return out;
 }
 
-std::int16_t le16(const unsigned char* p) {
-    return static_cast<std::int16_t>(
-        static_cast<std::uint16_t>(p[0]) |
-        (static_cast<std::uint16_t>(p[1]) << 8)
-    );
-}
-
-double scaledRotation(std::int16_t value) {
-    return static_cast<double>(value) / 32767.0;
+DescriptorField xm6RotationField() {
+    DescriptorField f;
+    f.usagePage = kSensorPage;
+    f.usage = kRotation;
+    f.reportId = 1;
+    f.reportCount = 3;
+    f.bitSize = 16;
+    f.logicalMin = -32767;
+    f.logicalMax = 32767;
+    f.physicalMin = -314159264;
+    f.physicalMax = 314159265;
+    f.unitExponent = -8;
+    f.unit = 0;
+    f.dataIndex = 0;
+    f.feature = false;
+    return f;
 }
 
 } // namespace
@@ -51,6 +59,8 @@ struct HidBackend::Context {
     hid_device* device{};
     RawCallback raw;
     SampleCallback sample;
+    DescriptorField rotationField{xm6RotationField()};
+    std::vector<double> decodedRotation;
     std::chrono::steady_clock::time_point rateStart{std::chrono::steady_clock::now()};
     std::uint64_t rateCount{};
     double rate{};
@@ -91,6 +101,7 @@ std::vector<DeviceInfo> HidBackend::enumerate(bool) {
         info.featureReportBytes = kFeatureReportBytes;
         info.sensorDescription = std::string(kMarker);
         info.androidHeadTracker = true;
+        info.fields.push_back(xm6RotationField());
         devices.push_back(std::move(info));
     }
 
@@ -145,13 +156,22 @@ bool HidBackend::connect(const DeviceInfo& device, RawCallback raw, SampleCallba
                 c->raw(packet);
 
             if (bytes >= 7 && report[0] == 0x01 && c->sample) {
-                const auto x = le16(&report[1]);
-                const auto y = le16(&report[3]);
-                const auto z = le16(&report[5]);
+                decodePackedDescriptorValuesInto(
+                    c->decodedRotation,
+                    std::span<const std::uint8_t>(report.data() + 1, 6),
+                    c->rotationField
+                );
+
+                if (c->decodedRotation.size() < 3)
+                    continue;
 
                 MotionSample s;
                 s.receivedAt = std::chrono::steady_clock::now();
-                s.rotationVector = {scaledRotation(x), scaledRotation(y), scaledRotation(z)};
+                s.rotationVector = {
+                    c->decodedRotation[0],
+                    c->decodedRotation[1],
+                    c->decodedRotation[2]
+                };
 
                 ++c->rateCount;
                 const auto elapsed = std::chrono::duration<double>(s.receivedAt - c->rateStart).count();
